@@ -1,0 +1,143 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Opportunity Scoring App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h1 class="text-2xl font-bold text-center mb-4">Sales Opportunity Scoring</h1>
+        <p class="text-gray-600 text-center mb-6">Score opportunities based on Process, Authority, and Need (0-5 each).</p>
+
+        <div class="space-y-4">
+            <!-- Process Input -->
+            <div>
+                <label for="process" class="block text-sm font-medium text-gray-700">Process (Rebate/Pricing Management)</label>
+                <select id="process" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="0">0 - Highly efficient, no issues</option>
+                    <option value="1">1 - Modern, minimal issues</option>
+                    <option value="2">2 - Adequate, limited pain points</option>
+                    <option value="3">3 - Functional but limited</option>
+                    <option value="4">4 - Semi-automated, clear inefficiencies</option>
+                    <option value="5">5 - Inefficient, manual, strong desire for improvement</option>
+                </select>
+            </div>
+
+            <!-- Authority Input -->
+            <div>
+                <label for="authority" class="block text-sm font-medium text-gray-700">Authority</label>
+                <select id="authority" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="0">0 - No access to decision-makers</option>
+                    <option value="1">1 - No clear authority/influence</option>
+                    <option value="2">2 - Limited influence, can connect</option>
+                    <option value="3">3 - Mid-level contact, some influence</option>
+                    <option value="4">4 - Influencer with direct access</option>
+                    <option value="5">5 - Primary decision-maker</option>
+                </select>
+            </div>
+
+            <!-- Need Input -->
+            <div>
+                <label for="need" class="block text-sm font-medium text-gray-700">Need</label>
+                <select id="need" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="0">0 - No identifiable need</option>
+                    <option value="1">1 - Weak/unclear need</option>
+                    <option value="2">2 - Potential need, needs validation</option>
+                    <option value="3">3 - Moderate need, competing priorities</option>
+                    <option value="4">4 - Strong need, not urgent</option>
+                    <option value="5">5 - Clear, urgent need</option>
+                </select>
+            </div>
+
+            <!-- Calculate Button -->
+            <button id="calculate" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                Calculate Score
+            </button>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="mt-6 hidden">
+            <h2 class="text-lg font-semibold text-gray-800">Results</h2>
+            <p id="total-score" class="text-gray-600"></p>
+            <p id="priority" class="text-gray-600 font-medium"></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('calculate').addEventListener('click', function() {
+            // Get input values
+            const process = parseInt(document.getElementById('process').value);
+            const authority = parseInt(document.getElementById('authority').value);
+            const need = parseInt(document.getElementById('need').value);
+
+            // Calculate total score
+            const totalScore = process + authority + need;
+
+            // Determine priority
+            let priority = '';
+            let priorityColor = '';
+            if (totalScore >= 12) {
+                priority = 'High Priority (Pursue immediately; strong potential)';
+                priorityColor = 'text-green-600';
+            } else if (totalScore >= 8) {
+                priority = 'Medium Priority (Nurture actively; good potential)';
+                priorityColor = 'text-blue-600';
+            } else if (totalScore >= 4) {
+                priority = 'Low Priority (Monitor and nurture; needs qualification)';
+                priorityColor = 'text-yellow-600';
+            } else {
+                priority = 'Defer or Disqualify (Low potential; focus elsewhere)';
+                priorityColor = 'text-red-600';
+            }
+
+            // Display results
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.classList.remove('hidden');
+            document.getElementById('total-score').textContent = `Total Score: ${totalScore} / 15`;
+            document.getElementById('priority').textContent = priority;
+            document.getElementById('priority').className = `text-gray-600 font-medium ${priorityColor}`;
+        });
+    </script>
+</body>
+</html>
